@@ -1,7 +1,9 @@
+'//By Necrolyte, https://github.com/Mustafa1177/JJ2ClientLib
 Imports System.Net
 Imports System.Net.Sockets
 Imports System.Text
 Namespace JJ2
+    'The library
     Public Class JJ2Client
         Public Property UserData As Object
         Dim _name As String = "(NoName)"
@@ -550,7 +552,7 @@ Namespace JJ2
                                         .NoMovement = CBool(recv(boolsIndex) And &H4)
                                         .NoBliking = CBool(recv(boolsIndex) And &H8)
                                         .ReadyCommandEnabled = CBool(recv(boolsIndex) And &H32)
-                                        .Fireball = CBool(recv(boolsIndex) And &H32)
+                                        .FireBall = CBool(recv(boolsIndex) And &H32)
                                     End With
                                 End If
                                 If boolsIndex + 1 < recv.Length Then '*New settings*
