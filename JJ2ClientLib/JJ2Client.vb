@@ -51,8 +51,7 @@ Namespace JJ2
         Public Property TotalBytesRecv As ULong = 0
         Public Property TotalBytesSent As ULong = 0
 
-
-        'JJ2+ Variable
+        'JJ2+ Variables
         Public Property PlusGameSettings As JJ2PlusGameSettings
         Public scriptModules As New Dictionary(Of String, Byte) 'Name, Id
         Public scriptsRequiredFiles As New List(Of String)
@@ -154,7 +153,7 @@ Namespace JJ2
                 TotalBytesRecv = 0
                 TotalBytesSent = 0
 
-                Winsock2.Client.BeginReceiveFrom(BufferUDP, 0, BufferUDP.Length, SocketFlags.None, _remoteEP, New AsyncCallback(AddressOf Winsock2_DataArrival), Nothing)
+                Winsock2.Client.BeginReceiveFrom(BufferUDP, 0, BufferUDP.Length, SocketFlags.None, _remoteEP, New AsyncCallback(AddressOf Winsock2_DataArrival), _remoteEP)
 
                 Winsock1.BeginReceive(BufferTCP, 0, BufferTCP.Length, SocketFlags.None, New AsyncCallback(AddressOf Winsock1_DataArrival), Nothing)
                 If JJ2Version <> "" Then
@@ -1036,21 +1035,31 @@ Namespace JJ2
                 RaiseEvent Error_Event(False, 1, ex.Message, UserData)
             End Try
         End Sub
+        Private Sub Winsock2GoReceive()
+            Try
+                Winsock2.Client.BeginReceiveFrom(BufferUDP, 0, BufferUDP.Length, SocketFlags.None, _remoteEP, New AsyncCallback(AddressOf Winsock2_DataArrival), _remoteEP)
+            Catch sockEx As SocketException
+                WinsockClose(7)
+            Catch nullEx As NullReferenceException
+            Catch obDisEx As ObjectDisposedException
+            End Try
+        End Sub
         Dim BufferUDP(512 - 1) As Byte
         Private Sub Winsock2_DataArrival(ByVal ar As IAsyncResult)
             Try
-                Dim dataLength As Integer = Winsock2.Client.EndReceive(ar)
+                Dim dataLength As Integer = Winsock2.Client.EndReceiveFrom(ar, ar.AsyncState)
                 TotalBytesRecv += dataLength
                 ConnectionTimeOut = 30
                 Dim recv(dataLength - 1) As Byte
                 Array.Copy(BufferUDP, recv, dataLength)
                 Winsock2_DataArrival_Read(recv)
-                Winsock2.Client.BeginReceiveFrom(BufferUDP, 0, BufferUDP.Length, SocketFlags.None, _remoteEP, New AsyncCallback(AddressOf Winsock2_DataArrival), Nothing)
+                Winsock2GoReceive()
             Catch sockEx As SocketException
                 WinsockClose(7)
                 '   MsgBox("Winsock2_DataArrival err")
             Catch nullEx As NullReferenceException
             Catch obDisEx As ObjectDisposedException
+
             End Try
         End Sub
         Private Sub Winsock2_DataArrival_Read(ByVal recv As Byte())

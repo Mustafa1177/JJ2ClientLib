@@ -11,13 +11,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CS", "CS", "{70EB08A8-BA49-
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Chatlogger", "Chatlogger\Chatlogger.csproj", "{FFCAEBC2-F79B-45D9-A083-CA77B6B64405}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Library Builds", "Library Builds", "{8C1B42B5-48FC-492A-B1B2-8F40D9339E19}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Library Builds old", "Library Builds old", "{8C1B42B5-48FC-492A-B1B2-8F40D9339E19}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".NET Standard 2.0", ".NET Standard 2.0", "{67A2B04F-9862-44BC-B4C2-23B9341C948C}"
+	ProjectSection(SolutionItems) = preProject
+		JJ2ClientLib\bin\Release\netstandard2.0\JJ2ClientLib.deps.json = JJ2ClientLib\bin\Release\netstandard2.0\JJ2ClientLib.deps.json
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "x86", "x86", "{84A1831D-2DC4-49DE-AD3B-5B807B846075}"
 	ProjectSection(SolutionItems) = preProject
-		JJ2ClientLib\bin\Release\netstandard2.0\JJ2ClientLib.deps.json = JJ2ClientLib\bin\Release\netstandard2.0\JJ2ClientLib.deps.json
 		JJ2ClientLib\bin\Release\netstandard2.0\JJ2ClientLib.dll = JJ2ClientLib\bin\Release\netstandard2.0\JJ2ClientLib.dll
 	EndProjectSection
 EndProject
