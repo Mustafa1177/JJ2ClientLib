@@ -12,6 +12,13 @@
         GREEN
         YELLOW
     End Enum
+    Public Enum SFSDF
+        aPLAYERBULLETP5
+    End Enum
+    Public Enum JJ2_DIRECTION
+
+        UP = 8
+    End Enum
     Public Enum JJ2_Disconnect_Message As Byte
         DISCONNECT_MESSAGE_SERVER_FULL = &H1
         DISCONNECT_MESSAGE_VERSION_DIFFERENT = &H2
