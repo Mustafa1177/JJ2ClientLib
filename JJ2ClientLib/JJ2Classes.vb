@@ -37,7 +37,22 @@
         Public Property IsOut As Boolean
         Public Property Character As JJ2_Character = 0
         Public Property Team As Byte = &HFF
-        Public Property Name As String = ""
+        Dim _name As String = ""
+        Public Property Name As String
+            Set(value As String)
+                _name = value
+                _unformattedName = JJ2GeneralFunctions.GetUnformattedName(value)
+            End Set
+            Get
+                Return _name
+            End Get
+        End Property
+        Dim _unformattedName As String = ""
+        Public ReadOnly Property UnformattedName As String
+            Get
+                Return _unformattedName
+            End Get
+        End Property
         Public Property Latency As Int16 = -1
         Public Color(3) As Byte
         Public Property Health As Byte = 0
@@ -48,6 +63,7 @@
         Public GunAmmo(9) As Integer
         Public GunPower(9) As Byte
         Public Property ShieldType As Integer = 0
+
         Public Sub reset(Optional plusServer As Boolean = False)
             ClientID = &HFF
             Client = Nothing
@@ -104,6 +120,7 @@
             End Get
         End Property
     End Class
+
     Public Structure JJ2Team
         Public Property Enabled As Boolean
         Public Property Color As JJ2_Player_Team
@@ -128,6 +145,7 @@
             FlagIsCaptured = False
         End Sub
     End Structure
+
     Public Class JJ2PlusGameSettings
         '----- set by plus packet (0x3F)
         Public Property PlusOnly As Boolean

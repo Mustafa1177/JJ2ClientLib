@@ -71,4 +71,11 @@
         sckTCPProtocol = 0
         sckUDPProtocol = 1
     End Enum
+
+    Public Enum CONSOLE_MESSAGE_CONTENT
+        UNKNOWN = 0
+        PLAYER_IP
+        PLAYER_IS_READY
+    End Enum
+
 End Namespace
