@@ -169,6 +169,31 @@ Namespace JJ2
         Public Function Leave() As String
             WinsockClose()
         End Function
+        Public Function serverName(serverIp As String, serverPort As Integer) As String
+            Using udpClient As New UdpClient()
+                udpClient.Client.ReceiveTimeout = 1000
+                Dim endPoint As New IPEndPoint(IPAddress.Parse(serverIp), serverPort)
+                Try
+                    Dim requestBytes As Byte() = {&H7, &H14, &H5, &H0, &H1}
+                    udpClient.Send(requestBytes, requestBytes.Length, endPoint)
+                    Dim responseBytes As Byte() = udpClient.Receive(endPoint)
+                    If responseBytes.Length > 17 Then
+                        Dim responseData As Byte() = responseBytes.Skip(17).ToArray()
+                        Dim serverNameEndIndex As Integer = Array.IndexOf(responseData, CByte(0))
+                        Dim parsedServerName As String = Encoding.UTF8.GetString(responseData, 0, serverNameEndIndex)
+                        parsedServerName = Regex.Replace(parsedServerName, "[^\x20-\x7e]", "")
+                        parsedServerName = parsedServerName.Replace("|", "")
+                        Return parsedServerName
+                    Else
+                        Console.WriteLine("Error: No response (probably)")
+                        Return String.Empty
+                    End If
+                Catch ex As SocketException
+                    Console.WriteLine("Error: Timed out")
+                    Return String.Empty
+                End Try
+            End Using
+        End Function
         Sub New()
             For i = 0 To 32 - 1
                 Players(i) = New JJ2Player(&HFF, 0, 0, Nothing)
