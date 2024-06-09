@@ -17,4 +17,9 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Remove="JJ2Client.cs" />
+    <None Remove="JJ2GeneralFunctions.cs" />
+  </ItemGroup>
+
 </Project>
