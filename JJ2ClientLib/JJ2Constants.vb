@@ -6,19 +6,23 @@
         BIRD = 3
         FROG = 4
     End Enum
+
     Public Enum JJ2_Player_Team
         BLUE
         RED
         GREEN
         YELLOW
     End Enum
+
     Public Enum SFSDF
         aPLAYERBULLETP5
     End Enum
+
     Public Enum JJ2_DIRECTION
 
         UP = 8
     End Enum
+
     Public Enum JJ2_Disconnect_Message As Byte
         DISCONNECT_MESSAGE_SERVER_FULL = &H1
         DISCONNECT_MESSAGE_VERSION_DIFFERENT = &H2
@@ -38,12 +42,14 @@
         DISCONNECT_MESSAGE_UNAUTHORIZED_FILE_REQUEST = &H11
         DISCONNECT_MESSAGE_NO_SPLITSCREENERS_ALLOWED = &H12
     End Enum
+
     Public Enum JJ2Plus_Game_State As Byte
         NORMAL
         TIME_LIMIT
         PREGAME
         OVERTIME
     End Enum
+
     Public Enum JJ2_Game_Type
         SINGLE_PLAYER
         COOP
@@ -52,6 +58,7 @@
         TREASURE
         CAPTURE
     End Enum
+
     Public Enum JJ2_Custom_Game_Type
         ' {"", "Roast Tag", "LRS", "XLRS", "Pestilence", "", "", "", "", "", "", "Team Battle", "Jailbreak", "Death CTF", "Flag Run", "TLRS", "Domination", "Head Hunters"}
         NONE = 0
@@ -67,6 +74,7 @@
         DOM = 16
         HEAD = 17
     End Enum
+
     Public Enum Network_Protocol
         sckTCPProtocol = 0
         sckUDPProtocol = 1

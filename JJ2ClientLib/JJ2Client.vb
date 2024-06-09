@@ -23,9 +23,9 @@ Namespace JJ2
         Dim _gameType As Byte
         Dim _maxScore As Integer
 
-        Const _connectionlimit = 64
-        Public ActiveClients(_connectionlimit) As Boolean
-        Public JJ2ClientsSockInfo(_connectionlimit) As JJ2SocketInfo
+        Const _connectionlimit = 32
+        Public ActiveClients(_connectionlimit - 1) As Boolean
+        Public JJ2ClientsSockInfo(_connectionlimit - 1) As JJ2SocketInfo
         Public Players(32 - 1) As JJ2Player
         Public Teams(4 - 1) As JJ2Team
         Private TeamsOld(4 - 1) As JJ2Team
@@ -111,6 +111,8 @@ Namespace JJ2
         Public Event Game_Settings_Update_Event(gameMode As JJ2_Game_Type, customGameMode As JJ2_Custom_Game_Type, maxScore As Integer, user As Object)
         Public Event Custom_IP_Update_Event(ByVal user As Object)
         Public Event Error_Event(ByVal disconnected As Boolean, ByVal errorCode As Integer, ByVal errorMsg As String, ByVal user As Object)
+        Public Event TCP_Data_Receive_Event(buffer As Byte(), offset As Integer, length As Integer, ByRef skipRead As Boolean, ByVal user As Object)
+        Public Event UDP_Data_Receive_Event(buffer As Byte(), length As Integer, ByRef skipRead As Boolean, ByVal user As Object)
         'Gameplay events [TCP]
         Public Event Gameplay_Player_Stats_List_Update_Event(user As Object)
         Public Event Gameplay_Teams_Scores_Set_Event(teamsUpdated As Byte(), user As Object)
@@ -181,8 +183,13 @@ Namespace JJ2
             'Threading.Thread.Sleep(2000)
 
             'Connect
-            Winsock1 = ws1
-            ws1.BeginConnect(serverAddress, port, New AsyncCallback(AddressOf Winsock1_Connect_Event), Nothing)
+            Try
+                Winsock1 = ws1
+                ws1.BeginConnect(serverAddress, port, New AsyncCallback(AddressOf Winsock1_Connect_Event), Nothing)
+            Catch ex As ObjectDisposedException
+                Return "Object disposed"
+            End Try
+
             Return ""
         End Function
 
@@ -222,12 +229,19 @@ Namespace JJ2
                     _serverPlusVersion = 0
                     PlusGameSettings = New JJ2PlusGameSettings
                     _packet0x0EWasSent = False
+                    TotalBytesRecv = 0
+                    TotalBytesSent = 0
                     Dim ipPort As String() = Winsock1.RemoteEndPoint.ToString.Split(":")
                     _remoteEP = New IPEndPoint(IPAddress.Parse(ipPort(0)), CInt(ipPort(1)))
                     _serverIPAddress = ipPort(0)
 
+                    If Winsock2 IsNot Nothing Then
+                        Winsock2.Close()
+                        Winsock2 = Nothing
+                    End If
                     If Winsock2 Is Nothing Then
                         Winsock2 = New UdpClient(0)
+                        'Winsock2.Client.Bind(New IPEndPoint(IPAddress.Any, 0))
                     End If
                     Reset()
                     RaiseEvent Connected_Event(ipPort(0), _serverAddress, ipPort(1), UserData)
@@ -235,10 +249,10 @@ Namespace JJ2
                     Array.Copy(BitConverter.GetBytes(CUShort(Winsock2.Client.LocalEndPoint.ToString.Split(":")(1))), 0, _joiningData1, 2, 2)
                     'assign local port of UDP socket
 
-                    TotalBytesRecv = 0
-                    TotalBytesSent = 0
-
-                    Winsock2.Client.BeginReceiveFrom(BufferUDP, 0, BufferUDP.Length, SocketFlags.None, _remoteEP, New AsyncCallback(AddressOf Winsock2_DataArrival), _remoteEP)
+                    'Winsock2.Client.BeginReceiveFrom(BufferUDP, 0, BufferUDP.Length, SocketFlags.None, _remoteEP, New AsyncCallback(AddressOf Winsock2_DataArrival), _remoteEP)
+                    Winsock2.Connect(ipPort(0), ipPort(1))
+                    ConnectionTimeOut = 30
+                    Winsock2GoReceiveFixed()
 
                     Winsock1.BeginReceive(BufferTCP, 0, BufferTCP.Length, SocketFlags.None, New AsyncCallback(AddressOf Winsock1_DataArrival), Nothing)
                     If JJ2Version <> "" Then
@@ -275,7 +289,7 @@ Namespace JJ2
             End If
         End Sub
         Private Sub Reset()
-            For i As Byte = 0 To _connectionlimit
+            For i As Byte = 0 To _connectionlimit - 1
                 ActiveClients(i) = False
                 If JJ2ClientsSockInfo(i) IsNot Nothing Then
                     JJ2ClientsSockInfo(i).reset()
@@ -318,10 +332,14 @@ Namespace JJ2
                 If dataLength > 0 Then
                     Dim recv(dataLength - 1) As Byte
                     Array.Copy(BufferTCP, recv, dataLength)
-                    If _plusServer Then
-                        Winsock1_DataArrival_Read_PLUS(recv)
-                    Else
-                        Winsock1_DataArrival_Read(recv)
+                    Dim skipRead As Boolean = False
+                    RaiseEvent TCP_Data_Receive_Event(recv, 0, dataLength, skipRead, Me.UserData)
+                    If skipRead = False Then
+                        If _plusServer Then
+                            Winsock1_DataArrival_Read_PLUS(recv)
+                        Else
+                            Winsock1_DataArrival_Read(recv)
+                        End If
                     End If
                     TotalBytesRecv += dataLength
                     If _connected AndAlso Winsock1 IsNot Nothing Then 'breaks??
@@ -965,7 +983,7 @@ Namespace JJ2
                                     RaiseEvent Gameplay_Player_Deaths_Update_Event(playerID, 0, UserData)
                                     Console.WriteLine("player[" & playerID & "] D=" & BitConverter.ToInt32(recv, packStartingIndex + 3))
                                 End If
-                            Case &H51
+                            Case &H51 'Successful Udp ping
 #If DEBUG Then
                                 Console.WriteLine("Received packet 0x51")
 #End If
@@ -1328,6 +1346,34 @@ Namespace JJ2
             End Try
         End Sub
         Dim BufferUDP(512 - 1) As Byte
+
+        Sub Winsock2GoReceiveFixed()
+            Task.Run(Sub()
+                         Try
+                             Dim remoteEndPoint = New IPEndPoint(IPAddress.Any, 0)
+                             While True
+                                 ' Dim dataLength = Winsock2.Client.ReceiveFrom(BufferUDP, remoteEndPoint)
+                                 'Dim recv(dataLength - 1) As Byte
+                                 'Array.Copy(BufferUDP, recv, dataLength)
+                                 Dim recv = Winsock2.Receive(remoteEndPoint)
+                                 ConnectionTimeOut = 30
+                                 Dim skipRead As Boolean = False
+                                 RaiseEvent UDP_Data_Receive_Event(recv, recv.Length, skipRead, Me.UserData)
+                                 If skipRead = False Then
+                                     If _plusServer = False Then
+                                         Winsock2_DataArrival_Read(recv)
+                                     Else
+                                         Winsock2_DataArrival_Read_Plus(recv)
+                                     End If
+                                 End If
+                             End While
+                         Catch sockEx As SocketException
+                             'WinsockClose(7)
+                         Catch nullEx As NullReferenceException
+                         Catch obDisEx As ObjectDisposedException
+                         End Try
+                     End Sub)
+        End Sub
         Private Sub Winsock2_DataArrival(ByVal ar As IAsyncResult)
             Try
                 Dim dataLength As Integer = Winsock2.Client.EndReceiveFrom(ar, ar.AsyncState)
@@ -1335,14 +1381,18 @@ Namespace JJ2
                 ConnectionTimeOut = 30
                 Dim recv(dataLength - 1) As Byte
                 Array.Copy(BufferUDP, recv, dataLength)
-                If _plusServer = False Then
-                    Winsock2_DataArrival_Read(recv)
-                Else
-                    Winsock2_DataArrival_Read_Plus(recv)
+                Dim skipRead As Boolean = False
+                RaiseEvent UDP_Data_Receive_Event(recv, dataLength, skipRead, Me.UserData)
+                If skipRead = False Then
+                    If _plusServer = False Then
+                        Winsock2_DataArrival_Read(recv)
+                    Else
+                        Winsock2_DataArrival_Read_Plus(recv)
+                    End If
                 End If
                 Winsock2GoReceive()
             Catch sockEx As SocketException
-                WinsockClose(7)
+                WinsockClose(7) 'this causes reconnect to fail?
                 '   MsgBox("Winsock2_DataArrival err")
             Catch nullEx As NullReferenceException
             Catch obDisEx As ObjectDisposedException
@@ -1427,28 +1477,44 @@ Namespace JJ2
                                 Select Case subpacketID
                                     Case &H3
                                         subpacketLength = 3 'for plus?
+                                    Case &H4
+                                        subpacketLength = 3
+                                    Case &H5
+                                        subpacketLength = 4
                                     Case &H10
-                                        subpacketLength = 20 'for plus?
+                                        subpacketLength = 3
                                     Case &H1F 'CTF info
                                         subpacketLength = 3 'for plus?
                                 End Select
                                 If subpacketLength <= 0 Then
 #If DEBUG Then
-                                    Console.WriteLine("Length of subpacket [" & subpacketID & "] is unknown")
+                                    Console.WriteLine("Length of subpacket [" & subpacketID & "] is unknown, index [" & subpacketStartIndex & "]")
+                                    Console.WriteLine(ByteArrayToString(recv))
 #End If
                                     Exit While
                                 End If
                                 Select Case subpacketID
                                     Case &H3
-                                        subpacketLength = 3 'for plus?
+
                                     Case &H7 'Bullet fired
 
                                     Case &HA
                                         'subpacketLength = 3 'for plus?
                                     Case &HC 'Hurt
+                                        'Incomplete! there are unknown bits
+                                        Dim attackerID = (recv(subpacketStartIndex + 2) >> 2) And CByte(32 - 1)
+                                        Dim hurtPlayerID As Byte = recv(subpacketStartIndex + 3) And CByte(32 - 1)
+                                        Dim hurtPlayerHealth As Byte = (recv(subpacketStartIndex + 3) And CByte(&HE0)) >> 5
+                                        If (hurtPlayerID < Players.Length) Then
+                                            'use this to calculate total damage players caused
+                                            Dim oldHealth = Players(hurtPlayerID).Health
+                                            Players(hurtPlayerID).Health = hurtPlayerHealth
+                                        End If
+#If DEBUG Then
+                                        Console.WriteLine(String.Format("Plauer {0} damaged player {1}, health={2}", attackerID + 1, hurtPlayerID + 1, hurtPlayerHealth))
+#End If
                                     Case &HE 'Kill
                                         If recv.Length > subpacketStartIndex + 7 Then
-
 
                                             Dim victimID As Byte = recv(subpacketStartIndex + 1)
                                             Dim victimKills As Integer = BitConverter.ToInt32(recv, subpacketStartIndex + 2)
@@ -1481,47 +1547,8 @@ Namespace JJ2
                                         Dim victimHealth As Byte = (recv(subpacketStartIndex + 1) And CByte(&HE0)) >> 5
                                         Dim attackerID As Byte = recv(subpacketStartIndex + 2) And CByte(32 - 1)
                                         RaiseEvent Gameplay_Player_Hit_Event(victimID, victimHealth, attackerID, UserData)
-                                    Case &H10 'Bullet(Plus)??
-                                        subpacketLength = 20 'for plus?
-                                        If (recv.Length > subpacketStartIndex + 20) Then
-                                            Dim shooterID As Byte = (recv(subpacketStartIndex + 6) >> 2) And CByte(32 - 1)
-                                            Dim gun As Byte = recv(subpacketStartIndex + 7) And &HF 'ObjectID
-                                            Dim isGunPU As Boolean = CBool(recv(subpacketStartIndex + 7) And &H80)
-                                            ' Dim vertical As Boolean = CBool(recv(subpacketStartIndex + 7) And &H40) 'not sure????????
-
-                                            Dim bulletX As Short = BitConverter.ToInt16(recv, subpacketStartIndex + 8)
-                                            Dim bulletY As Short = BitConverter.ToInt16(recv, subpacketStartIndex + 10)
-
-                                            'bullet velocity is not final, playVx will affect it
-                                            Dim bulletBaseVx As SByte = If(recv(subpacketStartIndex + 13) < 128, recv(subpacketStartIndex + 13), recv(subpacketStartIndex + 13) - 256)
-                                            Dim bulletAngle As SByte = If(recv(subpacketStartIndex + 14) < 128, recv(subpacketStartIndex + 14), recv(subpacketStartIndex + 14) - 256) 'a guess
-                                            Dim bulletBaseVy As SByte = If(recv(subpacketStartIndex + 15) < 128, recv(subpacketStartIndex + 15), recv(subpacketStartIndex + 15) - 256)
-
-                                            '' Dim playVx As SByte = If(recv(subpacketStartIndex + 16) < 128, recv(subpacketStartIndex + 16), recv(subpacketStartIndex + 16) - 256) 'i think
-                                            Dim playVx As Short = BitConverter.ToInt16(recv, subpacketStartIndex + 16) 'player Vx
-                                            'Dim direction As SByte = If(recv(subpacketStartIndex + 17) < 128, recv(subpacketStartIndex + 17), recv(subpacketStartIndex + 17) - 256)
-
-                                            ' Dim actualAngle As Single 'clockwise, starting form right (like some 2d game frameworks)
-
-
-                                            Dim lifetime As Byte = recv(subpacketStartIndex + 18)
-                                            Dim objType As Byte = recv(subpacketStartIndex + 19) 'gun +1?
-                                            Dim ammo As Byte = recv(subpacketStartIndex + 20)
-
-
-                                            Dim bulletFinalVx As Integer = bulletBaseVx + playVx 'tested on seekers, maybe not valid for some other weapons
-                                            Dim spriteDirection As SByte = If(bulletBaseVx >= 0, 1, -1) ' its the sign of bulletBaseVx
-                                            RaiseEvent Gameplay_Plus_Bullet_Shoot_Event(shooterID, gun, isGunPU, bulletX, bulletY, bulletBaseVx, bulletBaseVy, playVx, lifetime, ammo, Me.UserData)
-                                        Else
-#If DEBUG Then
-                                            Console.WriteLine(String.Format("subpacket 0x{0} length is incorrect "), subpacketID.ToString("XX"))
-#End If
-                                        End If
-
-
-#If DEBUG Then
-                                     '   Console.WriteLine("Aim val [" & recv(subpacketStartIndex + 14) & "]")
-#End If
+                                    Case &H10 'Unknown
+                                        'subpacketLength is 4                                    
                                     Case &H1E 'CTF info
                                         'subpacket: 1E 00 02 numOfTeamInfo array(numOfTeamInfo){teamID, Score[4]} unknownByte numOfFlagInfo array(numOfFlagInfo){teamID, isFlagCaptured, carrierID}
                                         Dim numOfTeamScoreInfo = recv(subpacketStartIndex + 3)
@@ -1618,11 +1645,51 @@ Namespace JJ2
                                         subpacketLength = arrayStartIndex - subpacketStartIndex - 1 'set subpacket length manually since it's not static
                                     Case &H1F 'CTF info
                                         subpacketLength = 3 'for plus?
-                                    Case &H22 'Bullet(Plus)??
-                                        ' subpacketLength = 16 'for plus?
-                                        ' Dim bulletX As Short = BitConverter.ToInt16(recv, +4)
-                                        ' Dim bulletY As Short = BitConverter.ToInt16(recv, +6)
-                                        ' Dim ammo As Byte = recv(subpacketStartIndex + 16)
+                                    Case &H21 'Unknown 
+                                        Dim unknown1 = recv(subpacketStartIndex + 1)
+                                        Dim unknown2 = recv(subpacketStartIndex + 2)
+                                    Case &H22 'Bullet (Plus)
+
+                                        If (recv.Length > subpacketStartIndex + 16) Then
+                                            Dim shooterID As Byte = (recv(subpacketStartIndex + 2) >> 2) And CByte(32 - 1)
+                                            Dim gun As Byte = recv(subpacketStartIndex + 3) And &HF 'ObjectID
+                                            Dim isGunPU As Boolean = CBool(recv(subpacketStartIndex + 3) And &H80)
+                                            ' Dim vertical As Boolean = CBool(recv(subpacketStartIndex + 3) And &H40) 'not sure????????
+
+                                            Dim bulletX As Short = BitConverter.ToInt16(recv, subpacketStartIndex + 4)
+                                            Dim bulletY As Short = BitConverter.ToInt16(recv, subpacketStartIndex + 6)
+
+                                            'bullet velocity is not final, playVx will affect it
+                                            Dim bulletBaseVx As SByte = If(recv(subpacketStartIndex + 9) < 128, recv(subpacketStartIndex + 9), recv(subpacketStartIndex + 9) - 256)
+                                            Dim bulletAngle As SByte = If(recv(subpacketStartIndex + 10) < 128, recv(subpacketStartIndex + 10), recv(subpacketStartIndex + 10) - 256) 'a guess
+                                            Dim bulletBaseVy As SByte = If(recv(subpacketStartIndex + 11) < 128, recv(subpacketStartIndex + 11), recv(subpacketStartIndex + 11) - 256)
+
+                                            '' Dim playVx As SByte = If(recv(subpacketStartIndex + 12) < 128, recv(subpacketStartIndex + 12), recv(subpacketStartIndex + 12) - 256) 'i think
+                                            Dim playVx As Short = BitConverter.ToInt16(recv, subpacketStartIndex + 12) 'player Vx
+                                            'Dim direction As SByte = If(recv(subpacketStartIndex + 13) < 128, recv(subpacketStartIndex + 13), recv(subpacketStartIndex + 13) - 256)
+
+                                            ' Dim actualAngle As Single 'clockwise, starting form right (like some 2d game frameworks)
+
+
+                                            Dim lifetime As Byte = recv(subpacketStartIndex + 14)
+                                            Dim objType As Byte = recv(subpacketStartIndex + 15) 'gun +1?
+                                            Dim ammo As Byte = recv(subpacketStartIndex + 16)
+
+
+                                            Dim bulletFinalVx As Integer = bulletBaseVx + playVx 'tested on seekers, maybe not valid for some other weapons
+                                            Dim spriteDirection As SByte = If(bulletBaseVx >= 0, 1, -1) ' its the sign of bulletBaseVx
+                                            RaiseEvent Gameplay_Plus_Bullet_Shoot_Event(shooterID, gun, isGunPU, bulletX, bulletY, bulletBaseVx, bulletBaseVy, playVx, lifetime, ammo, Me.UserData)
+                                        Else
+#If DEBUG Then
+                                            Console.WriteLine(String.Format("subpacket 0x{0} length is incorrect"), subpacketID.ToString("XX"))
+#End If
+                                        End If
+
+
+#If DEBUG Then
+                                        '   Console.WriteLine("Aim val [" & recv(subpacketStartIndex + 14) & "]")
+#End If
+
                                 End Select
                                 subpacketStartIndex += 1 + subpacketLength
                             End While
@@ -1651,7 +1718,12 @@ Namespace JJ2
                 Return 0
             End If
         End Function
-        Shared GAMEPLAY_SUBPACKET_LENGTH_PLUS As Integer() = {0, 3, 3, 1, 2, 1, 1, 7, 12, 1, 3, 4, 4, 1, 10, 2, 2, 2, 2, 2, 2, 3, 4, 2, 3, 4, 3, 9, 10, 3, 4, 2, 7}
+        '                                                                                                    2 | 3
+        Shared GAMEPLAY_SUBPACKET_LENGTH_PLUS As Integer() = {0, 3, 3, 3, 2, 1, 1, 7, 12, 1, 3, 4, 4, 1, 10, 2, 3, 2, 2, 2, 2, 3, 4, 2, 3, 4, 3, 9, 10, 3, 4, 2, 7, 2, 16}
+        'double check indices 3, 10, and 22 
+        'Index 3 might be changed, check this "93 16 07 D7 03 00 00 00 15 6E 25 04", is it 3?
+        'Previously it was = {0, 3, 3, 1, 2, 1, 1, 7, 12, 1, 3, 4, 4, 1, 10, 2, 2, 2, 2, 2, 2, 3, 4, 2, 3, 4, 3, 9, 10, 3, 4, 2, 7}
+
         Shared Function GetPlusGameplaySubpacketLength(subpacketID As Byte)
             If subpacketID < GAMEPLAY_SUBPACKET_LENGTH_PLUS.Length Then
                 Return GAMEPLAY_SUBPACKET_LENGTH_PLUS(subpacketID)
@@ -1832,6 +1904,15 @@ Namespace JJ2
             buffer(0) = CByte(x Mod 251)
             buffer(1) = CByte(y Mod 251)
         End Function
+        Shared Function ByteArrayToString(src As Byte(), Optional format As String = "X2", Optional separator As String = " ")
+            Dim res = New StringBuilder(src.Length * 2 + separator.Length * src.Length - separator.Length)
+            For Each b In src
+                res.Append(b.ToString(format))
+                res.Append(separator)
+            Next
+            Return res.ToString
+        End Function
+
 
         Private Function TryParseConsoleMessage(ByVal msg As String, msgType As Byte) As CONSOLE_MESSAGE_CONTENT
             Dim result = CONSOLE_MESSAGE_CONTENT.UNKNOWN
@@ -1963,6 +2044,9 @@ Namespace JJ2
             If _connected And socketID <> &HFF Then
                 Try
                     Dim messagePacket As Byte() = {0, &H1B, socketID, &H20}
+                    If msg.Length > 250 Then
+                        msg = msg.Substring(0, 250)
+                    End If
                     msg = System.Text.Encoding.Default.GetString(messagePacket) & msg
                     messagePacket = DefaultEncoding.GetBytes(msg)
                     messagePacket(0) = messagePacket.Length
