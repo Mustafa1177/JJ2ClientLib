@@ -160,4 +160,13 @@
         Public Property MaxResolutionWidth As UShort = 640
         Public Property MaxResolutionHeight As UShort = 480
     End Class
+
+    'replaced by: Queue<KeyValuePair<byte,byte[]>> PlusSciptPacketQueue;
+    Public Structure QueuedPlusSciptPacket
+
+    public ScriptModuleID as Byte
+    public data as Byte()
+
+    End Structure
+
 End Namespace
