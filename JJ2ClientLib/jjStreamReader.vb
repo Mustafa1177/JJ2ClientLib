@@ -111,13 +111,10 @@
             Dim result = False
             Select Case value.GetType
                 Case GetType(Byte)
-
                     Me._nextOffset += 1
                 Case GetType(SByte)
-
                     Me._nextOffset += 1
                 Case GetType(UShort)
-
                     Me._nextOffset += 2
                 Case GetType(Short)
                     Me._nextOffset += 2
@@ -134,12 +131,10 @@
                 Case GetType(Double)
                     Me._nextOffset += 8
                 Case GetType(String)
-
             End Select
 
             Return result
         End Function
-
 
     End Class
 End Namespace

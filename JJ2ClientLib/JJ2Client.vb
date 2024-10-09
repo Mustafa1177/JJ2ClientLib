@@ -41,6 +41,7 @@ Namespace JJ2
 
         Dim WithEvents every1SecTimer As New Timers.Timer
         Dim WithEvents AnimTimer As New Timers.Timer
+        Dim WithEvents ScriptPacketQueueTimer As New Timers.Timer
         Dim udpTimerState As Boolean = False
         Dim ConnectionTimeOut As Byte = 30
         Dim UDPCount As Byte = &H3
@@ -53,6 +54,7 @@ Namespace JJ2
 
         Public Property TotalBytesRecv As ULong = 0
         Public Property TotalBytesSent As ULong = 0
+        Public Property maxSentScriptPacketsPerTick As Integer = 3
 
         'Custom functionalities
         Public Property _AutoSpec As Byte = 1
@@ -66,6 +68,8 @@ Namespace JJ2
         Public Property PlusGameSettings As New JJ2PlusGameSettings
         Public ScriptModules As New Dictionary(Of String, Byte) 'Name, Id
         Public ScriptsRequiredFiles As New List(Of String)
+        Private QueuedPriorityPlusScriptPackets As New Queue(Of KeyValuePair(Of Byte, Byte()))(32)
+        Private QueuedPlusScriptPackets As New Queue(Of KeyValuePair(Of Byte, Byte()))(64)
         Dim _serverPlusVersion As Integer = &H0
         Dim _scriptsEnabled As Boolean = False
         Dim _plusOnly As Boolean
@@ -177,6 +181,12 @@ Namespace JJ2
             AnimTimer.Interval = 125
             '    AnimTimer.Start()
 
+            RemoveHandler ScriptPacketQueueTimer.Elapsed, AddressOf ScriptPacketQueueTimerTick
+            ScriptPacketQueueTimer.Stop()
+            AddHandler ScriptPacketQueueTimer.Elapsed, AddressOf ScriptPacketQueueTimerTick
+            ScriptPacketQueueTimer.Interval = 42
+            ScriptPacketQueueTimer.Start()
+
             Dim vIn As SByte = -1
             Dim vOut As Byte() = BitConverter.GetBytes(vIn)
 
@@ -208,6 +218,7 @@ Namespace JJ2
             RemoveHandler every1SecTimer.Elapsed, AddressOf every1SecTimerTick
             every1SecTimer.Dispose()
             AnimTimer.Dispose()
+            ScriptPacketQueueTimer.Dispose()
             If Winsock1 IsNot Nothing Then
                 Winsock1.Close()
             End If
@@ -281,6 +292,8 @@ Namespace JJ2
                 _packet0x0EWasSent = False
                 If disconType <> &HFF Then
                     RaiseEvent Disconnected_Event(disconType, _serverIPAddress, _serverAddress, _serverPort, UserData)
+                    QueuedPriorityPlusScriptPackets.Clear()
+                    QueuedPlusScriptPackets.Clear()
                 End If
                 _serverIPAddress = ""
             End If
@@ -310,7 +323,9 @@ Namespace JJ2
             _serverPlusVersion = 0
             _scriptsEnabled = False
             scriptsRequiredFiles.Clear()
-            scriptModules.Clear()
+            ScriptModules.Clear()
+            QueuedPriorityPlusScriptPackets.Clear()
+            QueuedPlusScriptPackets.Clear()
 
             _isFirstGameState = True
             _gameInProgress = False
@@ -727,6 +742,7 @@ Namespace JJ2
                                 Dim consoleMessageType As Byte = recv(packStartingIndex + 2)
                                 Dim bytear As Byte() = {&H0}
                                 Dim str As String = Encoding.ASCII.GetString(bytear)
+                                'FOLLOWING LINE IS BUGGED!!!
                                 Dim msg As String = Encoding.UTF7.GetString(recv).Substring(packStartingIndex + 3, packetRealLength - addnmbr - 3).Replace(vbNullChar, "")
                                 Dim msgContent = TryParseConsoleMessage(msg, consoleMessageType)
                                 RaiseEvent Console_Message_Recveived_Event(msg, consoleMessageType, msgContent, UserData)
@@ -1025,7 +1041,9 @@ Namespace JJ2
 
                             Case &H5A ' mut list
                                 scriptModules.Clear()
-                                scriptsRequiredFiles.Clear()
+                                ScriptsRequiredFiles.Clear()
+                                QueuedPriorityPlusScriptPackets.Clear()
+                                QueuedPlusScriptPackets.Clear()
                                 If recv.Length - packStartingIndex >= 11 Then
                                     Dim numOfScripts As Byte = recv(packStartingIndex + 7)
                                     Dim numOfRequiredFiles As UShort = BitConverter.ToInt16(recv, packStartingIndex + 8)
@@ -1074,6 +1092,8 @@ Namespace JJ2
                     End While
 
                 End If
+                'Catch ex As System.Net.Http.HttpRequestException 'remove this, added  just for testing
+
             Catch ex As Exception
                 RaiseEvent Error_Event(False, 2, ex.Message, UserData)
             Finally
@@ -1775,6 +1795,23 @@ Namespace JJ2
             End If
         End Sub
 
+        Private Sub ScriptPacketQueueTimerTick(ByVal sender As Object, ByVal e As System.Timers.ElapsedEventArgs)
+            Dim pairedModuleIdAndPacket As KeyValuePair(Of Byte, Byte())
+            Dim i As Integer = maxSentScriptPacketsPerTick
+            While i > 0
+                If QueuedPriorityPlusScriptPackets.Count <> 0 Then
+                    pairedModuleIdAndPacket = QueuedPriorityPlusScriptPackets.Dequeue()
+
+                ElseIf QueuedPlusScriptPackets.Count <> 0 Then
+                    pairedModuleIdAndPacket = QueuedPlusScriptPackets.Dequeue()
+                Else
+                    Exit While
+                End If
+                SendJJ2PlusNetworkStream(pairedModuleIdAndPacket.Value, pairedModuleIdAndPacket.Key)
+                i -= 1
+            End While
+        End Sub
+
         Private Sub Winsock1SendData(ByVal data As Byte())
             Try
                 Winsock1.Send(data)
@@ -1808,6 +1845,8 @@ Namespace JJ2
             Next
             _isFirstScoreUpdate = True
             _isFirstGameState = True
+            QueuedPriorityPlusScriptPackets.Clear()
+            QueuedPlusScriptPackets.Clear()
 
             Dim replyPacket As Byte()
             If Not PlusServer Then
@@ -1850,6 +1889,19 @@ Namespace JJ2
 
         Public Function SendJJ2PlusNetworkStream(ByVal sw As jjStreamWritter, ByVal scriptModuleId As Byte) As Boolean
             Return SendJJ2PlusNetworkStream(sw.ToArray(), scriptModuleId)
+        End Function
+
+        Public Function QueueJJ2PlusNetworkStream(ByVal streamData As Byte(), ByVal scriptModuleId As Byte, Optional ByVal highPriority As Boolean = False) As Boolean
+            If highPriority Then
+                QueuedPriorityPlusScriptPackets.Enqueue(New KeyValuePair(Of Byte, Byte())(scriptModuleId, streamData))
+            Else
+                QueuedPlusScriptPackets.Enqueue(New KeyValuePair(Of Byte, Byte())(scriptModuleId, streamData))
+            End If
+            Return True
+        End Function
+
+        Public Function QueueJJ2PlusNetworkStream(ByVal sw As jjStreamWritter, ByVal scriptModuleId As Byte, Optional ByVal highPriority As Boolean = False) As Boolean
+            Return QueueJJ2PlusNetworkStream(sw.ToArray(), scriptModuleId, highPriority)
         End Function
 
         Public Function GetScriptModuleID(ByVal scriptName As String) As Integer
@@ -2463,6 +2515,19 @@ Namespace JJ2
                 End If
             End Get
         End Property
+
+        ''' <returns>In ms.</returns>
+        Public Property PlusScriptPacketQueueSendInterval As Integer
+            Get
+                Return ScriptPacketQueueTimer.Interval
+            End Get
+            Set(value As Integer)
+                ScriptPacketQueueTimer.Interval = value
+            End Set
+        End Property
+
+
+
     End Class
 
 End Namespace
