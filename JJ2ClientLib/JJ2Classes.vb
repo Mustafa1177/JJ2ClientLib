@@ -154,7 +154,11 @@
         Public Property NoBliking As Boolean
         Public Property ReadyCommandEnabled As Boolean
         Public Property FireBall As Boolean
-        Public Property WallJumping As Boolean
+        Public Property MouseAim As Boolean
+        Public Property StrongPUs As Boolean
+        Public Property WallJumping As Boolean = True
+        Public Property BulletBouncing As Boolean = True
+        Public Property BlastKnockback As Boolean = True
 
         '----- set by other packets
         Public Property MaxResolutionWidth As UShort = 640

@@ -54,7 +54,7 @@ Namespace JJ2
 
         Public Property TotalBytesRecv As ULong = 0
         Public Property TotalBytesSent As ULong = 0
-        Public Property maxSentScriptPacketsPerTick As Integer = 3
+        Public Property MaxSentScriptPacketsPerTick As Integer = 3
 
         'Custom functionalities
         Public Property _AutoSpec As Byte = 1
@@ -70,7 +70,7 @@ Namespace JJ2
         Public ScriptsRequiredFiles As New List(Of String)
         Private QueuedPriorityPlusScriptPackets As New Queue(Of KeyValuePair(Of Byte, Byte()))(32)
         Private QueuedPlusScriptPackets As New Queue(Of KeyValuePair(Of Byte, Byte()))(64)
-        Dim _serverPlusVersion As Integer = &H0
+        Dim _serverPlusVersion As UInt32 = &H0
         Dim _scriptsEnabled As Boolean = False
         Dim _plusOnly As Boolean
         Dim _gameState As JJ2Plus_Game_State = 0
@@ -720,8 +720,9 @@ Namespace JJ2
                                 RaiseEvent End_Of_Level_Event(winnerID, winnerScore, playersIDs, playersPlaces, teamsIDs, teamsPlaces, UserData)
                             Case &H3F 'Plus Info
                                 If packStartingIndex + 5 < recv.Length Then
-                                    _serverPlusVersion = BitConverter.ToInt32(recv, packStartingIndex + 2)
+                                    _serverPlusVersion = BitConverter.ToUInt32(recv, packStartingIndex + 2)
                                 End If
+                                _plusServer = True
                                 Dim boolsIndex As Integer = packStartingIndex + 9
                                 If boolsIndex < recv.Length Then
                                     _plusOnly = CBool(recv(boolsIndex) And &H1)
@@ -730,12 +731,20 @@ Namespace JJ2
                                         .FriendlyFire = CBool(recv(boolsIndex) And &H2)
                                         .NoMovement = CBool(recv(boolsIndex) And &H4)
                                         .NoBliking = CBool(recv(boolsIndex) And &H8)
-                                        .ReadyCommandEnabled = CBool(recv(boolsIndex) And &H32)
-                                        .FireBall = CBool(recv(boolsIndex) And &H32)
+                                        .ReadyCommandEnabled = CBool(recv(boolsIndex) And 16)
+                                        .FireBall = CBool(recv(boolsIndex) And 32)
+                                        .MouseAim = CBool(recv(boolsIndex) And 64)
+                                        .StrongPUs = CBool(recv(boolsIndex) And 128)
                                     End With
                                 End If
                                 If boolsIndex + 1 < recv.Length Then '*New settings*
                                     PlusGameSettings.WallJumping = CBool(recv(boolsIndex + 1) And &H1)
+                                    PlusGameSettings.BulletBouncing = If(_serverPlusVersion >= &H60003, CBool(recv(boolsIndex + 1) And &H2), True)
+                                    PlusGameSettings.BlastKnockback = If(_serverPlusVersion >= &H60003, CBool(recv(boolsIndex + 1) And &H4), True)
+                                Else
+                                    PlusGameSettings.WallJumping = True
+                                    PlusGameSettings.BulletBouncing = True
+                                    PlusGameSettings.BlastKnockback = True
                                 End If
 
                             Case &H40 'Console Message
@@ -1071,9 +1080,7 @@ Namespace JJ2
                                         fileStartIndex += recv(temp) + 6
                                     Next
                                 End If
-
                         End Select
-
 
 
                         '''''''''''''
@@ -1571,6 +1578,7 @@ Namespace JJ2
                                         'subpacketLength is 4                                    
                                     Case &H1E 'CTF info
                                         'subpacket: 1E 00 02 numOfTeamInfo array(numOfTeamInfo){teamID, Score[4]} unknownByte numOfFlagInfo array(numOfFlagInfo){teamID, isFlagCaptured, carrierID}
+                                        Dim unknownByte1 = recv(subpacketStartIndex + 1) 'Type: 0=TeamScoreInfo, 1=FlagInfo
                                         Dim numOfTeamScoreInfo = recv(subpacketStartIndex + 3)
                                         Dim teamsUpdated(numOfTeamScoreInfo - 1) As Byte 'for the event
                                         Dim arrayStartIndex As Integer = subpacketStartIndex + 4
@@ -1595,7 +1603,8 @@ Namespace JJ2
                                         Next
                                         RaiseEvent Gameplay_Teams_Scores_Update_Event(teamsUpdated, UserData)
 
-                                        Dim unknownByte = recv(arrayStartIndex)
+                                        'here we should add if(arrayStartIndex < recv.length) bcs maybe the following is not always included
+                                        Dim unknownByte2 = recv(arrayStartIndex) 'it is actually a repeat to the above, and this is equivalent to to unknownByte1 (so we should replace all of this with a loop)
                                         'Console.WriteLine("unknwnByte=" & unknownByte)
                                         If arrayStartIndex + 1 < recv.Length Then 'prevents error
                                             Dim numOfFlagInfo = recv(arrayStartIndex + 1)
@@ -1651,13 +1660,15 @@ Namespace JJ2
                                                 If Teams(teamID).FlagIsCaptured AndAlso Not TeamsOld(teamID).FlagIsCaptured Then
                                                     'flag capture event
                                                     RaiseEvent Gameplay_Player_Captured_Flag_Event(teamID, Teams(teamID).FlagCarriedByPlayerID, UserData)
+                                                ElseIf Teams(teamID).FlagIsCaptured AndAlso (TeamsOld(teamID).FlagIsCaptured AndAlso Teams(teamID).FlagCarriedByPlayerID <> TeamsOld(teamID).FlagCarriedByPlayerID AndAlso
+                                                    Teams(teamID).FlagCarriedByPlayerID >= 0 AndAlso Teams(teamID).FlagCarriedByPlayerID < 32) Then ' FlagCarrier changed (this if cond has not been tested enough)
+                                                    'Instant flag capture event (can also be flag pass event?)
+                                                    RaiseEvent Gameplay_Player_Captured_Flag_Event(teamID, Teams(teamID).FlagCarriedByPlayerID, UserData)
                                                 End If
                                                 If Not Teams(teamID).FlagIsCaptured AndAlso TeamsOld(teamID).FlagIsCaptured Then
                                                     'flag drop event
                                                     RaiseEvent Gameplay_Flag_Drop_Event(teamID, TeamsOld(teamID).FlagCarriedByPlayerID, UserData)
                                                 End If
-
-
                                             Next
                                         Else
                                             _isFirstScoreUpdate = False
@@ -1671,7 +1682,7 @@ Namespace JJ2
                                     Case &H22 'Bullet (Plus)
 
                                         If (recv.Length > subpacketStartIndex + 16) Then
-                                            Dim shooterID As Byte = (recv(subpacketStartIndex + 2) >> 2) And CByte(32 - 1)
+                                            Dim shooterID As Byte = (recv(subpacketStartIndex + 2) >> 2) And CByte(32 - 1) 'Bit7(8th) = Under water?
                                             Dim gun As Byte = recv(subpacketStartIndex + 3) And &HF 'ObjectID
                                             Dim isGunPU As Boolean = CBool(recv(subpacketStartIndex + 3) And &H80)
                                             ' Dim vertical As Boolean = CBool(recv(subpacketStartIndex + 3) And &H40) 'not sure????????
@@ -2374,6 +2385,15 @@ Namespace JJ2
         Public ReadOnly Property PlusServer As Boolean
             Get
                 Return _plusServer
+            End Get
+        End Property
+
+        ''' <summary>
+        ''' Gets JJ2+ version of the server. Example: v5.9 = 0x00050009.
+        ''' </summary>
+        Public ReadOnly Property ServerPlusVersion As UInt32
+            Get
+                Return _serverPlusVersion
             End Get
         End Property
 
