@@ -2155,7 +2155,7 @@ Namespace JJ2
                     Else
                         startingFrom = 0
                     End If
-                    For i As Byte = startingFrom To _connectionlimit
+                    For i As Byte = startingFrom To _connectionlimit - 1
                         If JJ2ClientsSockInfo(i) IsNot Nothing Then
                             If JJ2ClientsSockInfo(i).NumOfPlayers <> 0 Then
                                 For Each anID As Byte In JJ2ClientsSockInfo(i).PlayerID

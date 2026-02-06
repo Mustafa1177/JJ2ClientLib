@@ -2,8 +2,9 @@
 
   <PropertyGroup>
     <RootNamespace>JJ2ClientLib</RootNamespace>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <Authors>Necrolyte</Authors>
+    <!--<TargetFramework>netstandard2.0</TargetFramework> -->
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <Authors>Necrolyte/SpaZ20</Authors>
     <Description>Jazz Jackrabbit 2 Client Library .NET</Description>
     <Copyright>Copyright © by Mustafa1177</Copyright>
     <RepositoryUrl>https://github.com/Mustafa1177/JJ2ClientLib</RepositoryUrl>
