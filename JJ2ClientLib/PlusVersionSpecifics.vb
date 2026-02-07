@@ -98,7 +98,7 @@ Namespace JJ2.PlusVersionSpecifics
 
     End Class
 
-    Public Class PlusVerHandler0606 'JJ2+ v5.0
+    Public Class PlusVerHandler0604 'JJ2+ v6.4
         Inherits PlusVerHandler0500
 
         Public Sub New(ByVal owner As JJ2Client)
@@ -145,8 +145,8 @@ Namespace JJ2.PlusVersionSpecifics
                             Array.Copy(recv, playerArrStartingIndex + 4, .Players(playerNumber).Color, 0, 4)
                             .Players(playerNumber).IconID = recv(playerArrStartingIndex + 14)
                             Dim playerNameLength As Byte = 0
-                        Dim whileHelper As UShort = playerArrStartingIndex + 15
-                        While recv(whileHelper) <> &H0
+                            Dim whileHelper As UShort = playerArrStartingIndex + 15
+                            While recv(whileHelper) <> &H0
                                 playerNameLength += 1
                                 whileHelper += 1
                                 If recv.Length = whileHelper Then
@@ -164,7 +164,7 @@ Namespace JJ2.PlusVersionSpecifics
                             Next
                             .JJ2ClientsSockInfo(playerSocketIndex).NumOfPlayers = tempNumOfPlayersFromClient
 
-                            playerArrStartingIndex += 15 + playerNameLength
+                            playerArrStartingIndex += 16 + playerNameLength
                             'MsgBox(Players(playerNumber).Name & " in server")
                         End If
                     Next

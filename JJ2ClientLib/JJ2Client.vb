@@ -672,8 +672,8 @@ Namespace JJ2
                                 If plusVerHandler Is Nothing Then
                                     'Jan 06 2026: Player List (6.6)
                                     Dim clientServerVerLowest As UInt32 = Math.Min(PlusVersion, _serverPlusVersion)
-                                    If clientServerVerLowest >= &H60006 Then
-                                        plusVerHandler = New PlusVerHandler0606(Me)
+                                    If clientServerVerLowest >= &H60004 Then
+                                        plusVerHandler = New PlusVerHandler0604(Me)
                                     Else
                                         plusVerHandler = New PlusVerHandler0500(Me)
                                     End If
