@@ -2,10 +2,12 @@
 Imports System.Net
 Imports System.Net.Sockets
 Imports System.Text
+Imports JJ2ClientLib.JJ2.PlusVersionSpecifics
 Namespace JJ2
     'The library
     Public Class JJ2Client
         Public Property UserData As Object
+        Private plusVerHandler As PlusVersionSpecifics.PlusVerHandler0500 = Nothing
         Dim _name As String = "(NoName)"
         Dim _char As Byte
         Dim _team As Byte
@@ -317,6 +319,7 @@ Namespace JJ2
                 Teams(i).Enabled = False
                 Teams(i).Reset()
             Next
+            plusVerHandler = Nothing
             Teams(0).Enabled = True : Teams(1).Enabled = True
             PlusGameSettings = New JJ2PlusGameSettings
             _plusOnly = False
@@ -373,7 +376,7 @@ Namespace JJ2
         End Sub
         Private Sub Winsock1_DataArrival_Read_PLUS(ByVal recv As Byte())
             Try
-                If recv.Length > 2 Then
+                If recv.Length >= 2 Then ' it was "If recv.Length > 2 Then" for long time! but what about packet 0x13 which has the length of 2?
                     Dim packetLength As UInteger = 0
                     Dim packetRealLength As UInteger = 0
                     Dim packetContentLength As UInteger 'exclude length byte(packet length from packetID to the end)
@@ -426,7 +429,7 @@ Namespace JJ2
                                 Dim senderSocketID As Byte = recv(packStartingIndex + 2)
                                 Dim team As Byte = recv(packStartingIndex + 3)
                                 Dim message As String = System.Text.Encoding.Default.GetString(recv, packStartingIndex + 4, packetLength - 3)
-                                Dim senderPlayerID As Byte = JJ2ClientsSockInfo(senderSocketID).playerID(0)
+                                Dim senderPlayerID As Byte = JJ2ClientsSockInfo(senderSocketID).PlayerID(0)
                                 If senderPlayerID <> &HFF Then
                                     RaiseEvent Message_Received_Event(message, Players(senderPlayerID).Name, team, senderPlayerID, senderSocketID, UserData)
                                 End If
@@ -439,7 +442,7 @@ Namespace JJ2
                                         End If
 
                                         If JJ2ClientsSockInfo(senderSocketID).AntiSpamCount >= _antiSpamNumOfMsgsToKick Then
-                                            SendMessage("/kick " & (JJ2ClientsSockInfo(senderSocketID).playerID(0) + 1) & " |(auto) |fuck off")
+                                            SendMessage("/kick " & (JJ2ClientsSockInfo(senderSocketID).PlayerID(0) + 1) & " |(auto) |fuck off")
                                             JJ2ClientsSockInfo(senderSocketID).AntiSpamCount = 0
                                         End If
                                     End If
@@ -455,14 +458,14 @@ Namespace JJ2
                                             If CBool(JJ2ClientsSockInfo(leftClientSocketIndex).NumOfPlayers) Then
                                                 RaiseEvent Client_Disconnected_Event(leftClientSocketIndex, disconnectMsg, JJ2ClientsSockInfo(leftClientSocketIndex).NumOfPlayers, UserData)
                                                 For wokingOnPlayer As Byte = 0 To JJ2ClientsSockInfo(leftClientSocketIndex).NumOfPlayers - 1
-                                                    If JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer) <> &HFF Then
-                                                        If Players(JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer)) IsNot Nothing Then
-                                                            If JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer) <> &HFF And JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer) < Players.Length Then
-                                                                Dim playerName As String = Players(JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer)).Name
-                                                                Dim playerID As Byte = JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer)
-                                                                JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer) = &HFF
-                                                                If JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer) <> &HFF Then
-                                                                    Players(JJ2ClientsSockInfo(leftClientSocketIndex).playerID(wokingOnPlayer)).reset()
+                                                    If JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer) <> &HFF Then
+                                                        If Players(JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer)) IsNot Nothing Then
+                                                            If JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer) <> &HFF And JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer) < Players.Length Then
+                                                                Dim playerName As String = Players(JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer)).Name
+                                                                Dim playerID As Byte = JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer)
+                                                                JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer) = &HFF
+                                                                If JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer) <> &HFF Then
+                                                                    Players(JJ2ClientsSockInfo(leftClientSocketIndex).PlayerID(wokingOnPlayer)).reset()
                                                                 End If
                                                                 RaiseEvent Player_Left_Event(playerName, disconnectMsg, playerID, leftClientSocketIndex, UserData)
                                                             End If
@@ -550,13 +553,13 @@ Namespace JJ2
                                         Dim playerNumber As Byte = recv(playerArrStartingIndex)
                                         Dim charTeam As Byte = recv(playerArrStartingIndex + 1)
 
-                                        If workingOnPlayer >= JJ2ClientsSockInfo(joinedClientSocketIndex).playerID.Length Then
+                                        If workingOnPlayer >= JJ2ClientsSockInfo(joinedClientSocketIndex).PlayerID.Length Then
                                             Exit For 'Very important, this might causes problems in players of server!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                                         End If
 
                                         If joinedClientSocketIndex < JJ2ClientsSockInfo.Length And playerNumber < Players.Length Then
-                                            JJ2ClientsSockInfo(joinedClientSocketIndex).playerID(workingOnPlayer) = playerNumber
-                                            Dim fdgfdgdfgdfgfdg As Byte = JJ2ClientsSockInfo(joinedClientSocketIndex).playerID(workingOnPlayer)
+                                            JJ2ClientsSockInfo(joinedClientSocketIndex).PlayerID(workingOnPlayer) = playerNumber
+                                            Dim fdgfdgdfgdfgfdg As Byte = JJ2ClientsSockInfo(joinedClientSocketIndex).PlayerID(workingOnPlayer)
 
                                             'init player
                                             If Players(playerNumber) Is Nothing Then
@@ -588,68 +591,75 @@ Namespace JJ2
                                     RaiseEvent Client_Connected_Event(joinedClientSocketIndex, JJ2ClientsSockInfo(joinedClientSocketIndex).NumOfPlayers, UserData)
                                 End If
                             Case &H12 'Player list update
-                                Dim totNumOfPlayers As Byte = recv(packStartingIndex + 2)
-                                Dim updatedClientsIndices As New List(Of Byte)
-                                Dim updatedPlayersIDs As New List(Of Byte)
-                                Dim numOfPlayersDoneWithInSock(_connectionlimit) As Byte
-                                If totNumOfPlayers <> 0 Then
-                                    Dim playerArrStartingIndex As Int16 = packStartingIndex + 3
-
-                                    For workingOnPlayer As Byte = 0 To totNumOfPlayers - 1
-                                        Dim playerSocketIndex As Byte = recv(playerArrStartingIndex)
-                                        Dim playerNumber As Byte = recv(playerArrStartingIndex + 1)
-                                        Dim charTeam As Byte = recv(playerArrStartingIndex + 2)
-
-                                        If playerSocketIndex < JJ2ClientsSockInfo.Length And playerNumber < Players.Length Then
-                                            updatedClientsIndices.Add(playerSocketIndex)
-                                            updatedPlayersIDs.Add(playerNumber)
-
-                                            'init socket info
-                                            If JJ2ClientsSockInfo(playerSocketIndex) Is Nothing Then
-                                                JJ2ClientsSockInfo(playerSocketIndex) = New JJ2SocketInfo
-                                            Else
-                                                '    JJ2ClientsSockInfo(playerSocketIndex).reset()
-                                            End If
-                                            JJ2ClientsSockInfo(playerSocketIndex).playerID(numOfPlayersDoneWithInSock(playerSocketIndex)) = playerNumber
-                                            numOfPlayersDoneWithInSock(playerSocketIndex) += 1
-                                            ActiveClients(playerSocketIndex) = True
-
-                                            'init player
-                                            If Players(playerNumber) Is Nothing Then
-                                                Players(playerNumber) = New JJ2Player(playerSocketIndex, charTeam Mod &H10, recv(playerArrStartingIndex + 3), JJ2ClientsSockInfo(playerSocketIndex))
-                                            Else
-                                                '   Players(playerNumber).reset()
-                                                Players(playerNumber).Update(playerSocketIndex, charTeam Mod &H10, recv(playerArrStartingIndex + 3), JJ2ClientsSockInfo(playerSocketIndex))
-                                            End If
-                                            Players(playerNumber).ClearStats(_plusServer)
-
-                                            Array.Copy(recv, playerArrStartingIndex + 4, Players(playerNumber).Color, 0, 4)
-                                            Dim playerNameLength As Byte = 0
-                                            Dim whileHelper As UShort = playerArrStartingIndex + 14
-                                            While recv(whileHelper) <> &H0
-                                                playerNameLength += 1
-                                                whileHelper += 1
-                                                If recv.Length = whileHelper Then
-                                                    Exit While
-                                                End If
-                                            End While
-                                            Players(playerNumber).Name = Encoding.UTF7.GetString(recv, (playerArrStartingIndex + 14), playerNameLength)
-
-                                            'assign NumOfPlayers
-                                            Dim tempNumOfPlayersFromClient As Byte = 0
-                                            For Each b As Byte In JJ2ClientsSockInfo(playerSocketIndex).playerID
-                                                If b <> &HFF Then
-                                                    tempNumOfPlayersFromClient += 1
-                                                End If
-                                            Next
-                                            JJ2ClientsSockInfo(playerSocketIndex).NumOfPlayers = tempNumOfPlayersFromClient
-
-                                            playerArrStartingIndex += 15 + playerNameLength
-                                            'MsgBox(Players(playerNumber).Name & " in server")
-                                        End If
-                                    Next
+                                If (recv.Length > packetRealLength) Then
+                                    Dim a = 5464
                                 End If
-                                RaiseEvent Players_List_Update_Event(updatedPlayersIDs.ToArray, updatedClientsIndices.ToArray, UserData)
+                                If False Then
+                                    Dim totNumOfPlayers As Byte = recv(packStartingIndex + 2)
+                                    Dim updatedClientsIndices As New List(Of Byte)
+                                    Dim updatedPlayersIDs As New List(Of Byte)
+                                    Dim numOfPlayersDoneWithInSock(_connectionlimit) As Byte
+                                    If totNumOfPlayers <> 0 Then
+                                        Dim playerArrStartingIndex As Int16 = packStartingIndex + 3
+
+                                        For workingOnPlayer As Byte = 0 To totNumOfPlayers - 1
+                                            Dim playerSocketIndex As Byte = recv(playerArrStartingIndex)
+                                            Dim playerNumber As Byte = recv(playerArrStartingIndex + 1)
+                                            Dim charTeam As Byte = recv(playerArrStartingIndex + 2)
+
+                                            If playerSocketIndex < JJ2ClientsSockInfo.Length And playerNumber < Players.Length Then
+                                                updatedClientsIndices.Add(playerSocketIndex)
+                                                updatedPlayersIDs.Add(playerNumber)
+
+                                                'init socket info
+                                                If JJ2ClientsSockInfo(playerSocketIndex) Is Nothing Then
+                                                    JJ2ClientsSockInfo(playerSocketIndex) = New JJ2SocketInfo
+                                                Else
+                                                    '    JJ2ClientsSockInfo(playerSocketIndex).reset()
+                                                End If
+                                                JJ2ClientsSockInfo(playerSocketIndex).PlayerID(numOfPlayersDoneWithInSock(playerSocketIndex)) = playerNumber
+                                                numOfPlayersDoneWithInSock(playerSocketIndex) += 1
+                                                ActiveClients(playerSocketIndex) = True
+
+                                                'init player
+                                                If Players(playerNumber) Is Nothing Then
+                                                    Players(playerNumber) = New JJ2Player(playerSocketIndex, charTeam Mod &H10, recv(playerArrStartingIndex + 3), JJ2ClientsSockInfo(playerSocketIndex))
+                                                Else
+                                                    '   Players(playerNumber).reset()
+                                                    Players(playerNumber).Update(playerSocketIndex, charTeam Mod &H10, recv(playerArrStartingIndex + 3), JJ2ClientsSockInfo(playerSocketIndex))
+                                                End If
+                                                Players(playerNumber).ClearStats(_plusServer)
+
+                                                Array.Copy(recv, playerArrStartingIndex + 4, Players(playerNumber).Color, 0, 4)
+                                                Dim playerNameLength As Byte = 0
+                                                Dim whileHelper As UShort = playerArrStartingIndex + 14
+                                                While recv(whileHelper) <> &H0
+                                                    playerNameLength += 1
+                                                    whileHelper += 1
+                                                    If recv.Length = whileHelper Then
+                                                        Exit While
+                                                    End If
+                                                End While
+                                                Players(playerNumber).Name = Encoding.UTF7.GetString(recv, (playerArrStartingIndex + 14), playerNameLength)
+
+                                                'assign NumOfPlayers
+                                                Dim tempNumOfPlayersFromClient As Byte = 0
+                                                For Each b As Byte In JJ2ClientsSockInfo(playerSocketIndex).PlayerID
+                                                    If b <> &HFF Then
+                                                        tempNumOfPlayersFromClient += 1
+                                                    End If
+                                                Next
+                                                JJ2ClientsSockInfo(playerSocketIndex).NumOfPlayers = tempNumOfPlayersFromClient
+
+                                                playerArrStartingIndex += 15 + playerNameLength
+                                                'MsgBox(Players(playerNumber).Name & " in server")
+                                            End If
+                                        Next
+                                    End If
+                                    RaiseEvent Players_List_Update_Event(updatedPlayersIDs.ToArray, updatedClientsIndices.ToArray, UserData)
+                                End If
+                                Dim readRes As Pckt0x12ReadResult = plusVerHandler.ReadPacket0x12(recv, packStartingIndex)
+                                RaiseEvent Players_List_Update_Event(readRes.UpdatedPlayersIDs.ToArray, readRes.UpdatedClientsIndices.ToArray, UserData)
                             Case &H13
                                 ChangeLevel(_nextLevelName, 0)
                                 Dim UDPPacket9_2 As Byte() = {&H0, &H0, &H9, &HC0, CheckDatafrom10for9(0), CheckDatafrom10for9(1), CheckDatafrom10for9(2), CheckDatafrom10for9(3)}
@@ -719,10 +729,19 @@ Namespace JJ2
                                 Next
                                 RaiseEvent End_Of_Level_Event(winnerID, winnerScore, playersIDs, playersPlaces, teamsIDs, teamsPlaces, UserData)
                             Case &H3F 'Plus Info
+                                _plusServer = True
                                 If packStartingIndex + 5 < recv.Length Then
                                     _serverPlusVersion = BitConverter.ToUInt32(recv, packStartingIndex + 2)
                                 End If
-                                _plusServer = True
+                                If plusVerHandler Is Nothing Then
+                                    'Jan 06 2026: Player List (6.6)
+                                    Dim clientServerVerLowest As UInt32 = Math.Min(PlusVersion, _serverPlusVersion)
+                                    If clientServerVerLowest >= &H60006 Then
+                                        plusVerHandler = New PlusVerHandler0606(Me)
+                                    Else
+                                        plusVerHandler = New PlusVerHandler0500(Me)
+                                    End If
+                                End If
                                 Dim boolsIndex As Integer = packStartingIndex + 9
                                 If boolsIndex < recv.Length Then
                                     _plusOnly = CBool(recv(boolsIndex) And &H1)
@@ -776,7 +795,7 @@ Namespace JJ2
                                                 spectatorModeState = True
                                             End If
                                             RaiseEvent Client_Spectate_Event(spectatorModeState, spectatorsSocketID, UserData)
-                                            For Each anId As Byte In JJ2ClientsSockInfo(spectatorsSocketID).playerID
+                                            For Each anId As Byte In JJ2ClientsSockInfo(spectatorsSocketID).PlayerID
                                                 If anId <> &HFF Then
                                                     RaiseEvent Player_Spectate_Event(spectatorModeState, anId, spectatorsSocketID, UserData)
                                                 End If
@@ -880,7 +899,7 @@ Namespace JJ2
                                 RaiseEvent Clients_State_Update_Event(UserData)
                             Case &H45
                                 Dim newOrEndedGame As Boolean = False
-                                timerInfoUpdateDate = Date.Now
+                                TimerInfoUpdateDate = Date.Now
                                 Dim gameWasStarted = _gameStarted
                                 _gameStarted = CBool(recv(packStartingIndex + 2) And &H1)
                                 _gameState = recv(packStartingIndex + 2) >> 1
@@ -946,7 +965,7 @@ Namespace JJ2
                                     i += 1
                                     Dim Ping As Integer = BitConverter.ToInt16(pingInBytes, 0)
                                     If Players(playerID) IsNot Nothing Then
-                                        Players(playerID).latency = Ping
+                                        Players(playerID).Latency = Ping
                                     End If
                                     workingOnPlayer += 1
                                 End While
@@ -1049,7 +1068,7 @@ Namespace JJ2
                                 End If
 
                             Case &H5A ' mut list
-                                scriptModules.Clear()
+                                ScriptModules.Clear()
                                 ScriptsRequiredFiles.Clear()
                                 QueuedPriorityPlusScriptPackets.Clear()
                                 QueuedPlusScriptPackets.Clear()

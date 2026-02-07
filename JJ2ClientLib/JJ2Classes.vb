@@ -35,6 +35,7 @@
         Public Property ClientID As Byte = &HFF
         Public Property Client As JJ2SocketInfo = Nothing
         Public Property IsOut As Boolean
+        Public Property IconID As Byte 'Since v6.6 (0 = empty)
         Public Property Character As JJ2_Character = 0
         Public Property Team As Byte = &HFF
         Dim _name As String = ""
@@ -77,6 +78,7 @@
                 GunPower(i) = 0
             Next
             IsOut = False
+            IconID = 0
             If plusServer = False Then
                 Deaths = -1
             Else
