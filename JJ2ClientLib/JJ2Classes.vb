@@ -35,9 +35,25 @@
         Public Property ClientID As Byte = &HFF
         Public Property Client As JJ2SocketInfo = Nothing
         Public Property IsOut As Boolean
+        Public Property IconID As Byte 'Since v6.6 (0 = empty)
         Public Property Character As JJ2_Character = 0
         Public Property Team As Byte = &HFF
-        Public Property Name As String = ""
+        Dim _name As String = ""
+        Public Property Name As String
+            Set(value As String)
+                _name = value
+                _unformattedName = JJ2GeneralFunctions.GetUnformattedName(value)
+            End Set
+            Get
+                Return _name
+            End Get
+        End Property
+        Dim _unformattedName As String = ""
+        Public ReadOnly Property UnformattedName As String
+            Get
+                Return _unformattedName
+            End Get
+        End Property
         Public Property Latency As Int16 = -1
         Public Color(3) As Byte
         Public Property Health As Byte = 0
@@ -48,6 +64,7 @@
         Public GunAmmo(9) As Integer
         Public GunPower(9) As Byte
         Public Property ShieldType As Integer = 0
+
         Public Sub reset(Optional plusServer As Boolean = False)
             ClientID = &HFF
             Client = Nothing
@@ -61,6 +78,7 @@
                 GunPower(i) = 0
             Next
             IsOut = False
+            IconID = 0
             If plusServer = False Then
                 Deaths = -1
             Else
@@ -104,6 +122,7 @@
             End Get
         End Property
     End Class
+
     Public Structure JJ2Team
         Public Property Enabled As Boolean
         Public Property Color As JJ2_Player_Team
@@ -128,6 +147,7 @@
             FlagIsCaptured = False
         End Sub
     End Structure
+
     Public Class JJ2PlusGameSettings
         '----- set by plus packet (0x3F)
         Public Property PlusOnly As Boolean
@@ -136,10 +156,23 @@
         Public Property NoBliking As Boolean
         Public Property ReadyCommandEnabled As Boolean
         Public Property FireBall As Boolean
-        Public Property WallJumping As Boolean
+        Public Property MouseAim As Boolean
+        Public Property StrongPUs As Boolean
+        Public Property WallJumping As Boolean = True
+        Public Property BulletBouncing As Boolean = True
+        Public Property BlastKnockback As Boolean = True
 
         '----- set by other packets
         Public Property MaxResolutionWidth As UShort = 640
         Public Property MaxResolutionHeight As UShort = 480
     End Class
+
+    'replaced by: Queue<KeyValuePair<byte,byte[]>> PlusSciptPacketQueue;
+    Public Structure QueuedPlusSciptPacket
+
+    public ScriptModuleID as Byte
+    public data as Byte()
+
+    End Structure
+
 End Namespace

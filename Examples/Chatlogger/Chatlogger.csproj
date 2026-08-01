@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\JJ2ClientLib\JJ2ClientLib.vbproj" />
+    <ProjectReference Include="..\..\JJ2ClientLib\JJ2ClientLib.vbproj" />
   </ItemGroup>
 
 </Project>
