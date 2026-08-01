@@ -61,7 +61,12 @@ Namespace JJ2
             Return result
         End Function
 
-        Public Shared Function GetUnformattedName(value As String) As String
+        Public Shared Function GetUnformattedNameLegacy(value As String) As String
+            Dim result As String = value.Replace("|"c, "").Replace("*"c, "")
+            Return result.Trim()
+        End Function
+
+        Public Shared Function GetUnformattedName(value As String) As String 'Supports new purple color
             Dim result As String = value.Replace("|"c, "").Replace("*"c, "")
             result = System.Text.RegularExpressions.Regex.Replace(result, "\\[1-9]", "")
             result = System.Text.RegularExpressions.Regex.Replace(result, "§.", "")
