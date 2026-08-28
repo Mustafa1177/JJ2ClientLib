@@ -88,11 +88,11 @@ Namespace JJ2
 
 
         Public Overridable Sub OnLevelLoad()
-            Console.WriteLine("Eating...")
+
         End Sub
 
         Public Overridable Sub OnReceive(packetStream As jjStreamReader, packet As Byte(), length As Integer, offset As Integer)
-            Console.WriteLine("Eating...")
+
         End Sub
 
 

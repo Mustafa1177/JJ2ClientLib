@@ -103,7 +103,7 @@
         Public Sub pop(ByRef value As String)
             Dim len = BitConverter.ToUInt32(_buffer, _nextOffset)
             _nextOffset += 4
-            System.Text.Encoding.UTF7.GetString(_buffer, _nextOffset, len)
+            value = System.Text.Encoding.UTF7.GetString(_buffer, _nextOffset, len)
             _nextOffset += len
         End Sub
 
