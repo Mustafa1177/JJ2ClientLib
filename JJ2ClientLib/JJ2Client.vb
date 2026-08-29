@@ -112,6 +112,7 @@ Namespace JJ2
         Public Event Player_Spectate_Event(ByVal spectatorModeState As Boolean, ByVal playerID As Byte, ByVal socketIndex As Byte, ByVal user As Object)
         Public Event Remote_Admins_Update_Event(ByVal user As Object)
         Public Event Game_State_Changed_Event(ByVal gameStarted As Boolean, ByVal gameWasStarted As Boolean, ByVal newGameState As JJ2Plus_Game_State, timeRemaining As Integer, timeLimit As Integer, newGame As Boolean, firstTime As Boolean, ByVal user As Object)
+        Public Event Script_List_Update_Event(ByVal user As Object)
         Public Event JJ2_Plus_Network_Stream_Data_Arrival(ByVal packet As Byte(), sourceID As Byte, packetStream As jjStreamReader, user As Object)
         Public Event Max_Resolution_Set_Event(ByVal maxWidth As UShort, ByVal maxHeight As UShort, ByVal user As Object)
         Public Event Team_State_Change_Event(team As Byte, enabled As Boolean, user As Object)
@@ -1061,6 +1062,7 @@ Namespace JJ2
                                         fileStartIndex += recv(temp) + 6
                                     Next
                                 End If
+                                RaiseEvent Script_List_Update_Event(UserData)
                         End Select
 
 
